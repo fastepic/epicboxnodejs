@@ -2,17 +2,16 @@
 Epicbox version on nodejs with elements of rust and adopt changes in epicbox protocole
 
 ## Setup
-+ install rust ver 1.60.0
-+ you must have working one instance RabbitMQ
-+ ( for old version with RabbitMQ ) RabbitMQ Plugin stomp (https://www.rabbitmq.com/stomp.html) rabbitmq
-+ ( for new version with mongoDB ) mongoDb instance ( sudo apt install mongodb )
++ mongoDb instance ( sudo apt install mongodb )
 + change ports and paths in app.js file, try read description to understand how it works
 
 ## Compilation epicboxlib
++ install rust ver 1.60.0
 + go to epicboxlib folder
 + run cargo update
 + run cargo build --release
 + if problems install all libraries which need epic-wallet setup - look at github EpicCash epic-wallet
++ copy epicboxlib exec file from ./epicboxlib/target/release/ folder to main folder where is app_mongo.js file
 
 ## Prepare nodejs
 + return to main folder where is package.json file
