@@ -51,7 +51,7 @@ const pathtoepicboxlib = "./epicboxlib"
 
 // html webpage displayed when you open domain in webbrowser. Information about other main epicbox servers.
 // this webpage can be rather small in size
-const html = "<!DOCTYPE html>\n\
+const html = `<!DOCTYPE html>\n\
 <html>\n\
 <head>\n\
 <title>Epicbox</title>\n\
@@ -79,8 +79,8 @@ const html = "<!DOCTYPE html>\n\
 <code>\n\
 \n\
 [epicbox]\n\
-epicbox_domain = 'epicbox.fastepic.eu'\n\
-epicbox_port = 443\n\
+epicbox_domain = '${epicbox_domain}'\n\
+epicbox_port = ${epicbox_port}\n\
 epicbox_protocol_unsecure = false\n\
 epicbox_address_index = 0\n\
 epicbox_listener_interval = 10\n\
@@ -89,7 +89,7 @@ epicbox_listener_interval = 10\n\
 </pre>\n\
 \n\
 </body>\n\
-</html>"
+</html>`
 
 
 const requestListener = function (req, res) {
