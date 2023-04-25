@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Epicbox</title>
+<style>a:link {
+  color: orange;
+} a:visited {
+  color: orange;
+}</style>
+</head>
+<body style='background-color: #242222; color: lightgray; margin-left: 20px;' class='container'>
+
+<main>
+  <h1>Epicbox servers. Local server number 1</h1>
+  <p>Protocol 2.0.0</p>
+  <a href='https://github.com/fastepic/epic-wallet/tree/epicbox-0.0.1'>epic-wallet to build with protocol 2.0.0</a>
+  <p>Asia, Australia - epicbox.hyperbig.com</p>
+  <p>North America, South America - epicbox.epic.tech</p>
+  <p>US East Cost - epicbox.epicnet.us</p>
+  <p>Africa, Europe - epicbox.fastepic.eu</p>
+  <br>
+  <p>More about Epic</p>
+  <a href='https://epic.tech'>Epic Cash main webpage</a>
+  <br>
+  <br>
+    Example use in toml file.
+
+  <pre>
+  <code>
+
+  [epicbox]
+  epicbox_domain = 'epicbox.fastepic.eu'
+  epicbox_port = 443
+  epicbox_protocol_unsecure = false
+  epicbox_address_index = 0
+  epicbox_listener_interval = 10
+
+  </code>
+  </pre>
+
+  <p> start listen: epic-wallet listen -m epicbox</p>
+  <br>
+  <h1>
+  Epicbox Statistics from <%= from %>:
+  </h1>
+  <h3>
+  connections: <%= connectionsInHour %> <br>
+  active connections: ${statistics.activeconnections}<br>
+  subscribes: ${statistics.connectionsInHour}<br>
+  received slates: ${statistics.slatesReceivedInHour}<br>
+  relayed slates: ${statistics.slatesRelayedInHour}<br>
+  sending slate attempts: ${statistics.slatesAttempt}<br>
+  </h3>
+  </main>
+
+</body>
+</html>

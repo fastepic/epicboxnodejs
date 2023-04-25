@@ -60,7 +60,7 @@ var intervalperiod = 4000 // 4 seconds
 
 
 //Where is executable rust named epicboxlib compiled from epicboxlib subfolder
-var pathtoepicboxlib = "./epicboxlib"
+//var pathtoepicboxlib = "./epicbox"
 
 // amount of repeats FastSend message to wallet
 var fast_send_repeats = 20
@@ -69,6 +69,20 @@ var fast_send_repeats = 20
 var fast_send_repeat_interval_ms = 1000
 
 var varinterval = 1000*60*5;
+
+var express = require('express');
+let app = express();
+app.set('view engine', 'ejs');
+app.get('/', function(req, res) {
+  res.render('pages/index', statObject);
+});
+
+var timestamp =	 Date.now();
+
+app.get('/timenow', function(req, res) {
+//  res.end(timestamp);
+  res.render('pages/time', {"time": timestamp});
+});
 
 //current version of protocol of epicboxnodejs ( wallet can use lower )
 //
@@ -176,67 +190,16 @@ setInterval(()=>{
 
 },60*60*1000);
 
-
-
-
-const requestListener = function (req, res) {
-      res.writeHead(200)
-      res.end(`<!DOCTYPE html>\n\
-<html>\n\
-<head>\n\
-<title>Epicbox</title>\n\
-<style>a:link {\n\
-  color: orange;\n\
-} a:visited {\n\
-  color: orange;\n\
-}</style>\n\
-</head>\n\
-<body style='background-color: #242222; color: lightgray; margin-left: 20px;''>\n\
-\n\
-<h1>Epicbox servers. Local server number 1</h1>\n\
-<p>Protocol 2.0.0</p>\n\
-<a href='https://github.com/fastepic/epic-wallet/tree/epicbox-0.0.1'>epic-wallet to build with protocol 2.0.0</a>\n\
-<p>Asia, Australia - epicbox.hyperbig.com</p>\n\
-<p>North America, South America - epicbox.epic.tech</p>\n\
-<p>US East Cost - epicbox.epicnet.us</p>\n\
-<p>Africa, Europe - epicbox.fastepic.eu</p>\n\
-<br>\n\
-<p>More about Epic</p>\n\
-<a href='https://epic.tech'>Epic Cash main webpage</a>\n\
-<br>\n\
-<br>\n\
-    Example use in toml file.\n\
-\n\
-<pre>\n\
-<code>\n\
-\n\
-[epicbox]\n\
-epicbox_domain = 'epicbox.fastepic.eu'\n\
-epicbox_port = 443\n\
-epicbox_protocol_unsecure = false\n\
-epicbox_address_index = 0\n\
-epicbox_listener_interval = 10\n\
-\n\
-</code>\n\
-</pre>\n\
-<p> start listen: epic-wallet listen -m epicbox</p>\n\
-<br>\n\
-<h1>\n\
-Epicbox Statistics from ${statistics.from.toUTCString()}:\n\
-</h1>\n\
-<h3>\n\
-connections: ${statistics.connectionsInHour}<br>\n\
-active connections: ${statistics.activeconnections}<br>\n\
-subscribes: ${statistics.connectionsInHour}<br>\n\
-received slates: ${statistics.slatesReceivedInHour}<br>\n\
-relayed slates: ${statistics.slatesRelayedInHour}<br>\n\
-sending slate attempts: ${statistics.slatesAttempt}<br>\n\
-</h3>\n\
-</body>\n\
-</html>`);
+var statObject = {
+    "from" : statistics.from,
+    "connectionsInHour": statistics.connectionsInHour
 }
 
+const requestListener = function (req, res) {
 
+  res.writeHead(200);
+  res.end();
+}
 
 
 
@@ -955,12 +918,15 @@ async function main() {
   console.log('Connected successfully to mongo');
 
   //run().catch(console.log);
-    
+
   server.listen(localepicboxserviceport)
-   
+
+  // express app for rendering of webpages
+  app.listen(8080)
+
   interval = setInterval( forInterval, 2000);
-  
-  setInterval(forIntervalChallenge, 3*60*1000); 
+
+  setInterval(forIntervalChallenge, 3*60*1000);
 
   return "Epicbox ready to work.";
 
