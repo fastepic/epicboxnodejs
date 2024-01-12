@@ -16,7 +16,7 @@
     ]
   }
  );
- 
+
 */
 
 const fs = require("fs");
@@ -35,7 +35,7 @@ const protver = "3.0.0";
  */
 const static_challenge = "7WUDtkSaKyGRUnQ22rE3QUXChV8DmA6NnunDYP4vheTpc";
 
-const config = { 
+const config = {
     mongourl: "mongodb://127.0.0.1:27019",
     epicbox_domain: "epicbox.fastepic.eu",
     epicbox_port: "443",
@@ -46,11 +46,11 @@ const config = {
     challenge_interval: 60000,
     debugMessage: true,
     stats: false,
-    
+
 };
 let mongoclient = null;
 let collection = null;
-let statistics = { 
+let statistics = {
   from: new Date(),
   connectionsInHour: 0,
   slatesReceivedInHour: 0,
@@ -71,7 +71,7 @@ setInterval(()=>{
     slatesSentInHour: 0,
     subscribeInHour: 0,
     activeconnections: 0,
-    slatesAttempt: 0   
+    slatesAttempt: 0
   }
 }, 60*60*1000);
 
@@ -135,15 +135,15 @@ const requestListener = (req, res) => {
 
 const server = createServer(requestListener);
 const wss = new WebSocketServer({
-  server: server,  
+  server: server,
 })
 
 wss.on('connection', (ws, req) => {
-    
-    if(config.stats){     
+
+    if(config.stats){
         statistics.connectionsInHour++;
     }
-    
+
     ws.uid = uid(5);
     ws.epicboxver = null;
     ws.ip = null;
@@ -152,49 +152,48 @@ wss.on('connection', (ws, req) => {
     //don't send challenges or slates to busy client
     ws.process_slate = false;
     ws.pending_challenge = false;
-    
-    
+
+
     if(req.headers['x-forwarded-for']){
         ws.ip = req.headers['x-forwarded-for'].split(',')[0].trim();
     }else{
         ws.ip = req.socket.remoteAddress;
     }
-    
+
     console.log(`[${new Date().toLocaleTimeString()}] [${ws.uid}] New connection from `, ws.ip);
-    
+
     // send a Challenge to wallet or other epicbox when first time connect
     // challenges are send in interval every x seconds later
     challenge(ws);
-    
+
     ws.on('close', (code, reason) => {
         ws.epicPublicAddress = null;
-        console.log('[%s] - [%s][%s] -> [%s] code: %s, reason: %s', new Date().toLocaleTimeString(), ws.uid, ws.ip, "Close connection", code, reason.toString());   
+        console.log('[%s] - [%s][%s] -> [%s] code: %s, reason: %s', new Date().toLocaleTimeString(), ws.uid, ws.ip, "Close connection", code, reason.toString());
     });
-    
+
     ws.on('error', (err) => {
         ws.epicPublicAddress = null;
         console.log('[%s] - [%s][%s] -> [%s] error: %s', new Date().toLocaleTimeString(), ws.uid, ws.ip, "Error", err);
     });
 
     ws.on('message', (data) => {
-        
         let message = null;
-        
+
         try{
    	        message = JSON.parse(data);
         }catch(err){
             console.log("Error parsing json data from client.", err);
-            
+
             ws.epicPublicAddress = null;
             return ws.close(code = 3000, reason = 'Error parsing message.');
         }
-          
+
         let type = message.type;
-        
-        /* TODO: 
-            - clients should set version via setVersion type 
+
+        /* TODO:
+            - clients should set version via setVersion type
             - split wallet client from epicbox client
-        */ 
+        */
         switch (type.toLowerCase()) {
             case "ping":
                 ws.send("pong");
@@ -204,13 +203,12 @@ wss.on('connection', (ws, req) => {
             break;
             /**
              * @deprecated in wallet version 3.5.2
-             * clients should not be allowed to trigger challenge/subscribe requests 
+             * clients should not be allowed to trigger challenge/subscribe requests
              */
             case "challenge":
                 challenge(ws);
             break;
             case "subscribe":
-                ws.pending_challenge = false;
                 subscribe(ws, message);
             break;
             case "unsubscribe":
@@ -221,7 +219,6 @@ wss.on('connection', (ws, req) => {
             break;
             //made is send after slate was successfully processed in wallet
             case "made":
-                ws.process_slate = false;
                 made(ws, message);
             break;
             case "getversion":
@@ -235,11 +232,11 @@ wss.on('connection', (ws, req) => {
             break;
         }
         //end switch message type
-        
+
         console.log('[%s] - [%s][%s] -> [%s]', new Date().toLocaleTimeString(), ws.uid, ws.ip, type);
         config.debugMessage ? console.log("Message", message) : null;
-        
-    
+
+
     });
 });
 
@@ -247,19 +244,20 @@ const getTimestamp = () => {
   return Math.floor(Date.now() / 1000);
 }
 
-/* 
+/*
     send challenge to client.
     the first challenge must use the old static challenge string for backward compatibility.
     older epicbox clients with  protocol version 2.0.0
     new epicbox/clients can use a dynamic challenge.
     //TODO if client blocks then this send messages are waiting in the queue
-*/ 
+*/
 const challenge = (ws) => {
     //we do not know clients epicbox version on first challenge request.
     //todo. client should send its version when connect to epicbox via setVersion
     let challenge = ws.epicboxver == "2.0.0" || ws.epicboxver == null ? static_challenge : uid(32);
     ws.challenge = challenge;
     ws.send(JSON.stringify({"type": "Challenge", "str": challenge}));
+    ws.pending_challenge = true;
 }
 
 //
@@ -269,7 +267,7 @@ const challenge = (ws) => {
 const subscribe = (ws, message) => {
 
     try{
-   
+
         //set used epicbox protocol version
         if(message.hasOwnProperty("ver")){
             switch (message.ver) {
@@ -282,34 +280,34 @@ const subscribe = (ws, message) => {
                 break;
             }
         }
-           
+
         // verify that client is the owner of the public key
         let args = ["verifysignature", message.address, ws.challenge, message.signature];
         const child = execFile(config.pathtoepicboxlib, args, (error, stdout, stderr) => {
             if (error) throw error;
-         
+
             // if signature is OK
             if(stdout === 'true'){
-    
+
                 if(config.stats){
                     statistics.subscribeInHour++;
                 }
-                
+
                 // client proved that he is the owner of the public address
                 ws.epicPublicAddress = message.address;
                 ws.lastSubscriptionTime = getTimestamp();
-                
+                ws.pending_challenge = false;
                 //get not processed tx for client
                 //prevent sending same slate multible times
-                if(ws.process_slate === false){
+                if(ws.process_slate == false){
                     collection.find({ queue: ws.epicPublicAddress, made: false}).sort({ "createdat" : 1 }).limit(1).toArray().then( (res) => {
-                        
+
                         if(res && res.length > 0) {
-                    
+
                             if(config.stats){
                                 statistics.slatesAttempt++;
                             }
-                            
+
                             let dbslate = res[0];
                             let payload = JSON.parse(dbslate.payload);
                             let slate = {
@@ -319,43 +317,44 @@ const subscribe = (ws, message) => {
                                 signature: payload.signature,
                                 challenge: payload.challenge,
                             };
-                            
+
                             if(ws.epicboxver == "2.0.0" || ws.epicboxver == "3.0.0"){
                                 slate.epicboxmsgid = dbslate.messageid;
                                 slate.ver = ws.epicboxver;
                             }else{
                                 collection.updateOne({ messageid:dbslate.messageid }, { $set: { made:true } });
                             }
-                            
-                            //TODO: check if this was already send on previous interval to client but client does block 
+
+                            //TODO: check if this was already send on previous interval to client but client does block
                             //if client blocks, this will end in multible made requests
                             //we must set a flag here if the slate to client was already send but client did not process yet for any reasons.
+
+                            ws.send(JSON.stringify(slate));
                             ws.process_slate = true;
-                            ws.send(JSON.stringify(slate)); 
                             console.log("Sent slate to", ws.epicPublicAddress);
                             config.debugMessage ? console.log(slate) : null;
-                            
+
                         }else{
-                            
+
                             //no slate found but subscribe was ok
-                            ws.send(JSON.stringify({type:"Ok"}));  
-                              
+                            ws.send(JSON.stringify({type:"Ok"}));
+
                         }
-                        //end if result > 0 
-                        
-                    }); 
+                        //end if result > 0
+
+                    });
                 }else{
                     //send back some response
-                    ws.send(JSON.stringify({type:"Ok"}));  
+                    ws.send(JSON.stringify({type:"Ok"}));
                 }
-                
+
             }else{
                 //client cannot prove that he is the owner of the public address
                 ws.epicPublicAddress = null;
                 ws.send(JSON.stringify({type: "Error", kind: "signature error", description: "Invalid signature."}));
             }
         });
-  
+
     }catch(err){
         console.log("Erro execute epicboxlib", err);
     }
@@ -366,7 +365,7 @@ const subscribe = (ws, message) => {
 // Unsubscribe client
 //
 const unsubscribe = (ws) => {
-    
+
     ws.epicPublicAddress = null;
     ws.send(JSON.stringify({type:"Ok"}));
 }
@@ -377,14 +376,14 @@ const unsubscribe = (ws) => {
 // validate address format and signature
 //
 const validatePostslate = (ws, message) => {
-    
+
     try {
         console.log("postslate from ", message.from, "to ", message.to);
 
         let publickey = message.from.split('@');
         publickey = publickey[0];
 
-        // use epicboxlib to verify address format 
+        // use epicboxlib to verify address format
         let args = ['verifyaddress',  message.from, message.to];
         execFile(config.pathtoepicboxlib, args, (error, stdout, stderr) => {
             if(error) throw error;
@@ -397,14 +396,14 @@ const validatePostslate = (ws, message) => {
 
                     if (error) throw error;
 
-                    if(stdout === 'true') { 
-                        
-                        if(config.stats){            
+                    if(stdout === 'true') {
+
+                        if(config.stats){
                             statistics.slatesReceivedInHour++;
                         }
-                        
+
                         postSlate(ws, message);
-                   
+
                     }else{
                         console.log("Error postslate signature", publickey);
                         ws.send(JSON.stringify({type: "Error", kind: "postslate error", description: "Invalid signature."}));
@@ -419,8 +418,8 @@ const validatePostslate = (ws, message) => {
         });
 
     }catch(err){
-        console.error("Error postslate", err);  
-    } 
+        console.error("Error postslate", err);
+    }
 
 }
 
@@ -442,15 +441,16 @@ const made = (ws, message) => {
                 collection.updateOne({queue: ws.epicPublicAddress, messageid: message.epicboxmsgid, made:false}, { $set: {made:true} }).then( (updateResult) => {
                     config.debugMessage ? console.log("DB update result", updateResult) : null;
                     ws.send(JSON.stringify({type:"Ok"}));
+                    ws.process_slate = false;
                     //if this slate was processed then send the next slate to client via challenge->subscribe
                     challenge(ws);
-                    
+
                 });
-            }else{       
+            }else{
                 ws.send(JSON.stringify({type: "Error", kind: "made error", description: "Invalid signature."}));
             }
         });
-    } 
+    }
 }
 
 
@@ -467,39 +467,39 @@ const postSlate = (ws, json) => {
         console.log("Error parsing message string", err);
         return;
     }
-    
+
     let addressto = {};
     addressto.publicKey = str.destination.public_key;
     addressto.domain = str.destination.domain;
     addressto.port = str.destination.port != null ? str.destination.port : 443;
-    
+
     if(addressto.domain === config.epicbox_domain && addressto.port === config.epicbox_port){
- 
+
         //challenge is not required, we keep it for backward compatibility
         let signed_payload = JSON.stringify({str: json.str, challenge: "", signature: json.signature});
-            
+
         // insert slate to db
-        collection.insertOne({ 
-                queue: addressto.publicKey, 
-                made: false, 
-                payload: Buffer.from(signed_payload), 
-                replyto: json.from, 
-                createdat: new Date(), 
-                expiration: 86400000, 
+        collection.insertOne({
+                queue: addressto.publicKey,
+                made: false,
+                payload: Buffer.from(signed_payload),
+                replyto: json.from,
+                createdat: new Date(),
+                expiration: 86400000,
                 messageid: uid(32)
-                  
-        }).catch((err)=>{  
+
+        }).catch((err)=>{
             console.error("Error insert to db", err);
         });
-        
+
         ws.send(JSON.stringify({type:"Ok"}));
-    
+
     }else{
 
         // forward tx to foreign epicbox
 		sock = new WebSocket("wss://" + addressto.domain +":"+ addressto.port);
         sock.on('error', console.error);
-        sock.on('open', () => { 
+        sock.on('open', () => {
             console.log("Connect "+ addressto.domain +":"+ addressto.port);
         });
         sock.on('message', (data) => {
@@ -509,56 +509,56 @@ const postSlate = (ws, json) => {
                     let slate = {type: "PostSlate", from: json.from, to: json.to, str: json.str, signature: json.signature};
                     sock.send(JSON.stringify(slate));
                 }
-                
+
                 if( message.type === "Ok" ) {
-                    
-                    if(config.stats){     
+
+                    if(config.stats){
                         statistics.slatesRelayedInHour++;
                     }
-                    
+
                     console.log("Sent to wss://"+ addressto.domain +":"+ addressto.port);
                     ws.send(JSON.stringify({type:"Ok"}));
-                } 
+                }
 
             }catch(err){
                 console.error("Error forward slate to foreign epicbox", err);
                 ws.send(JSON.stringify({type: "Error", kind: "foreign epicbox", description:"Error send Slate to foreign epicbox"}));
             }
-            
+
         });
-        
+
     }
 }
 
 const challengeInterval = () => {
-    
+
     wss.clients.forEach( (ws) => {
-        
-        if (ws.readyState === 1 
+
+        if (ws.readyState === 1
             && ws.epicPublicAddress !== null
             //do not spam clients with challenge requests
             //do not send new challenge if old challenge request was not subscribed (when client blocks)
-            && (ws.pending_challenge === false || (getTimestamp() - ws.lastSubscriptionTime >= config.challenge_interval))
+            && (ws.pending_challenge == false || (getTimestamp() - ws.lastSubscriptionTime >= config.challenge_interval))
         ) {
             try{
-                ws.pending_challenge = true;
+
                 challenge(ws);
             }catch(err){
                 console.log("Send Interval challenge error ", err);
             }
         }
-        
+
     });
-    
+
 }
 
 const loadConfig = async(filePath) =>{
-    
+
     try{
-        
+
         let jsonData = fs.readFileSync(filePath, 'utf8');
         let data = JSON.parse(jsonData);
-        
+
         config.mongourl = data.mongo_url != undefined ? data.mongo_url : config.mongourl;
         config.epicbox_domain = data.epicbox_domain != undefined ? data.epicbox_domain : config.epicbox_domain;
         config.epicbox_port = data.epicbox_port != undefined ? data.epicbox_port : config.epicbox_port;
@@ -569,11 +569,11 @@ const loadConfig = async(filePath) =>{
         config.challenge_interval = data.challenge_interval != undefined ? data.challenge_interval : config.challenge_interval;
         config.debugMessage = data.debug != undefined ? data.debug : config.debugMessage;
         config.stats = data.stats != undefined ? data.stats : config.stats;
-        
+
     } catch(err){
         console.error(err);
     }
-    
+
 }
 
 
@@ -581,7 +581,7 @@ const loadConfig = async(filePath) =>{
 // main starting function
 //
 const main = async() => {
-    
+
     let configPath = customConfig != -1 && process.argv[customConfig+1] != undefined ? process.argv[customConfig+1] : './config.json';
     console.log("Use config:", configPath);
     await loadConfig(configPath);
@@ -591,7 +591,7 @@ const main = async() => {
     await mongoclient.connect();
     console.log('Connected successfully to MongoDB');
     server.listen(config.localepicboxserviceport);
-    setInterval(challengeInterval, config.challenge_interval); 
+    setInterval(challengeInterval, config.challenge_interval);
     console.log("Epicbox ready to work.");
 
 }
@@ -608,7 +608,7 @@ const handle = (signal) => {
     mongoclient.close();
     process.exit()
 }
- 
+
 process.on('SIGINT', handle);
 process.on('SIGBREAK', handle);
 //process.on("SIGTERM", handle);
@@ -616,4 +616,3 @@ process.on('SIGBREAK', handle);
 
 
 main();
-
