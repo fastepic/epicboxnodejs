@@ -179,13 +179,18 @@ wss.on('connection', (ws, req) => {
     challenge(ws);
 
     ws.on('close', (code, reason) => {
-        delete clients_publicaddress[ws.epicPublicAddress];
+
+        if(ws.client_details.wallet_mode == 'listener'){
+            delete clients_publicaddress[ws.epicPublicAddress];
+        }
         ws.epicPublicAddress = null;
         console.log('[%s] - [%s][%s] -> [%s] code: %s, reason: %s', new Date().toLocaleTimeString(), ws.uid, ws.ip, "Close connection", code, reason.toString());
     });
 
     ws.on('error', (err) => {
-        delete clients_publicaddress[ws.epicPublicAddress];
+        if(ws.client_details.wallet_mode == 'listener'){
+            delete clients_publicaddress[ws.epicPublicAddress];
+        }
         ws.epicPublicAddress = null;
         console.log('[%s] - [%s][%s] -> [%s] error: %s', new Date().toLocaleTimeString(), ws.uid, ws.ip, "Error", err);
     });
@@ -197,7 +202,9 @@ wss.on('connection', (ws, req) => {
                message = JSON.parse(data);
         }catch(err){
             console.log("Error parsing json data from client.", err);
-            delete clients_publicaddress[ws.epicPublicAddress];
+            if(ws.client_details.wallet_mode == 'listener'){
+                delete clients_publicaddress[ws.epicPublicAddress];
+            }
             ws.epicPublicAddress = null;
             return ws.close(code = 3000, reason = 'Error parsing message.');
         }
@@ -319,8 +326,6 @@ const subscribe = (ws, message) => {
             }
         }
 
-        console.log("ws.client_details", ws.client_details);
-
         // verify that client is the owner of the public key
         let args = ["verifysignature", message.address, ws.challenge, message.signature];
         const child = execFile(config.pathtoepicboxlib, args, (error, stdout, stderr) => {
@@ -337,7 +342,7 @@ const subscribe = (ws, message) => {
                 ws.epicPublicAddress = message.address;
 
                 //add client listener for passthrough slates;
-                if(ws.client_details.wallet_mode == 'listener'){
+                if(clients_publicaddress[ws.epicPublicAddress] == undefined && ws.client_details.wallet_mode == 'listener'){
                     clients_publicaddress[ws.epicPublicAddress] = ws;
                 }
 
@@ -417,7 +422,9 @@ const subscribe = (ws, message) => {
 
             }else{
                 //client cannot prove that he is the owner of the public address
-                delete clients_publicaddress[ws.epicPublicAddress];
+                if(ws.client_details.wallet_mode == 'listener'){
+                    delete clients_publicaddress[ws.epicPublicAddress];
+                }
                 ws.epicPublicAddress = null;
                 ws.send(JSON.stringify({type: "Error", kind: "signature error", description: "Invalid signature."}));
             }
@@ -435,7 +442,9 @@ const subscribe = (ws, message) => {
  @param {object} ws  - Client socket
 */
 const unsubscribe = (ws) => {
-    delete clients_publicaddress[ws.epicPublicAddress];
+    if(ws.client_details.wallet_mode == 'listener'){
+        delete clients_publicaddress[ws.epicPublicAddress];
+    }
     ws.epicPublicAddress = null;
     ws.close(1000, "Work complete.");
 
