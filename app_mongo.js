@@ -134,10 +134,17 @@ const requestListener = (req, res) => {
         </html>`);
 }
 
+/*
+    webserver for port 80
+*/
 const server = createServer(requestListener);
+
+/*
+    epicbox websocket
+*/
 const wss = new WebSocketServer({
   server: server,
-})
+});
 
 wss.on('connection', (ws, req) => {
 
@@ -152,9 +159,9 @@ wss.on('connection', (ws, req) => {
     ws.epicPublicAddress = null;
     //don't send challenges or slates to busy client
     ws.process_slate = false;
-    //count send attemps to client
-    ws.sendslate_attemps = 0;
-    ws.max_sendslate_attemps = 0;
+    //count send attempts to client
+    ws.sendslate_attempts = 0;
+    ws.max_sendslate_attempts = 0;
     ws.pending_challenge = false;
     ws.client_details = {};
 
@@ -187,7 +194,7 @@ wss.on('connection', (ws, req) => {
         let message = null;
 
         try{
-   	        message = JSON.parse(data);
+               message = JSON.parse(data);
         }catch(err){
             console.log("Error parsing json data from client.", err);
             delete clients_publicaddress[ws.epicPublicAddress];
@@ -253,6 +260,9 @@ wss.on('connection', (ws, req) => {
     });
 });
 
+/*
+    get current unix timestamp
+*/
 const getTimestamp = () => {
   return Math.floor(Date.now() / 1000);
 }
@@ -263,6 +273,7 @@ const getTimestamp = () => {
     older epicbox clients with  protocol version 2.0.0
     new epicbox/clients can use a dynamic challenge.
     //TODO if client blocks then this send messages are waiting in the queue
+    @param {object} ws  - Client socket
 */
 const challenge = (ws) => {
     //we do not know clients epicbox version on first challenge request.
@@ -274,16 +285,23 @@ const challenge = (ws) => {
 }
 
 
+/*
+ Information about the clients wallet version, Client command and supported epixbox protocol
+ @param {object} ws  - Client socket
+ @param {json} message - Client message see epic wallet
+*/
 const clientdetails = (ws, message) => {
     ws.client_details = message;
     ws.send(JSON.stringify({type:"Ok"}));
 }
 
 
-//
-// Subscribe
-// validate client address and send back a pending slate
-//
+/*
+ Subscribe
+ validate client address and send back a pending slate
+ @param {object} ws  - Client socket
+ @param {json} message - Client message see epic wallet
+*/
 const subscribe = (ws, message) => {
 
     try{
@@ -330,18 +348,18 @@ const subscribe = (ws, message) => {
                 //we set 'process_slate' back to false after 3 successfully subscriptions
                 //and let the client try to process not made slates again.
                 //max resets are limited to 3 rounds.
-                if(ws.sendslate_attemps >= 3 && ws.max_sendslate_attemps <= 3){
-                    ws.sendslate_attemps = 0;
-                    ws.max_sendslate_attemps++;
+                if(ws.sendslate_attempts >= 3 && ws.max_sendslate_attempts <= 3){
+                    ws.sendslate_attempts = 0;
+                    ws.max_sendslate_attempts++;
                     ws.process_slate = false;
                 }
 
-                //if it's not possible for client to process not made slates after 3 rounds (=9 attemps),
+                //if it's not possible for client to process not made slates after 3 rounds (=9 attempts),
                 //then delete all not made slates from client in db
-                if(ws.max_sendslate_attemps >= 3){
+                if(ws.max_sendslate_attempts >= 3){
                     collection.deleteMany({ queue: ws.epicPublicAddress, made: false});
-                    ws.sendslate_attemps = 0;
-                    ws.max_sendslate_attemps = 0;
+                    ws.sendslate_attempts = 0;
+                    ws.max_sendslate_attempts = 0;
                     ws.process_slate = false;
                 }
 
@@ -393,7 +411,7 @@ const subscribe = (ws, message) => {
                     });
                 }else{
                     //send back some response
-                    ws.sendslate_attemps++;
+                    ws.sendslate_attempts++;
                     ws.send(JSON.stringify({type:"Ok"}));
                 }
 
@@ -411,9 +429,11 @@ const subscribe = (ws, message) => {
 }
 
 
-//
-// Unsubscribe client
-//
+/*
+ Unsubscribe and close client connection
+ validate address format and signature
+ @param {object} ws  - Client socket
+*/
 const unsubscribe = (ws) => {
     delete clients_publicaddress[ws.epicPublicAddress];
     ws.epicPublicAddress = null;
@@ -422,10 +442,12 @@ const unsubscribe = (ws) => {
 }
 
 
-//
-// client sends a new tx or a response to an tx
-// validate address format and signature
-//
+/*
+ client sends a new tx or a response to an tx
+ validate address format and signature
+ @param {object} ws  - Client socket
+ @param {json} message - Client message see epic wallet
+*/
 const validatePostslate = (ws, message) => {
 
     try {
@@ -498,7 +520,7 @@ const made = (ws, message) => {
                     config.debugMessage ? console.log("DB update result", updateResult) : null;
                     ws.send(JSON.stringify({type:"Ok"}));
                     ws.process_slate = false;
-                    ws.sendslate_attemps = 0;
+                    ws.sendslate_attempts = 0;
                     //if this slate was processed then send the next slate to client via challenge->subscribe
                     challenge(ws);
 
@@ -511,10 +533,12 @@ const made = (ws, message) => {
 }
 
 
-
-//
-// store tx in db or forward to foreign epicbox if domain does not match our epicbox domain
-//
+/*
+ store tx in db or forward to foreign epicbox
+ if domain does not match our epicbox domain
+ @param {object} ws  - Client socket
+ @param {json} message - Client message see epic wallet
+*/
 const postSlate = (ws, json) => {
 
     let str = {};
@@ -565,6 +589,7 @@ const postSlate = (ws, json) => {
                     challenge: "",
                 };
 
+                //TODO: cleanup version stuff, kick out old clients <2.0.0
                 if(receiver.epicboxver == "2.0.0" || receiver.epicboxver == "3.0.0"){
                     slate.epicboxmsgid = messageid;
                     slate.ver = receiver.epicboxver;
@@ -583,12 +608,10 @@ const postSlate = (ws, json) => {
             ws.send(JSON.stringify({type:"Ok"}));
         }
 
-
-
     }else{
 
         // forward tx to foreign epicbox
-		sock = new WebSocket("wss://" + addressto.domain +":"+ addressto.port);
+        sock = new WebSocket("wss://" + addressto.domain +":"+ addressto.port);
         sock.on('error', console.error);
         sock.on('open', () => {
             console.log("Connect "+ addressto.domain +":"+ addressto.port);
@@ -621,6 +644,9 @@ const postSlate = (ws, json) => {
     }
 }
 
+/*
+    send recurring challenge -> subscribe cycles to all clients
+*/
 const challengeInterval = () => {
 
     wss.clients.forEach( (ws) => {
@@ -643,6 +669,9 @@ const challengeInterval = () => {
 
 }
 
+/*
+    load config for epixbox custom settings
+*/
 const loadConfig = async(filePath) =>{
 
     try{
@@ -667,11 +696,7 @@ const loadConfig = async(filePath) =>{
 
 }
 
-
-//
-// main starting function
-//
-const main = async() => {
+const startEpicbox = async() => {
 
     let configPath = customConfig != -1 && process.argv[customConfig+1] != undefined ? process.argv[customConfig+1] : './config.json';
     console.log("Use config:", configPath);
@@ -705,4 +730,4 @@ process.on('SIGBREAK', handle);
 //process.on("SIGTERM", handle);
 //process.on("SIGKILL", handle);
 
-main();
+startEpicbox();
