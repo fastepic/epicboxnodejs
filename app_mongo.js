@@ -34,7 +34,8 @@ const protver = "3.0.0";
  * use dynamic challenge strings
  */
 const static_challenge = "7WUDtkSaKyGRUnQ22rE3QUXChV8DmA6NnunDYP4vheTpc";
-
+//used to reference client socket (ws) to public address (epic address) for slate passthroughs
+const clients_publicaddress = {};
 const config = {
     mongourl: "mongodb://127.0.0.1:27019",
     epicbox_domain: "epicbox.fastepic.eu",
@@ -151,7 +152,11 @@ wss.on('connection', (ws, req) => {
     ws.epicPublicAddress = null;
     //don't send challenges or slates to busy client
     ws.process_slate = false;
+    //count send attemps to client
+    ws.sendslate_attemps = 0;
+    ws.max_sendslate_attemps = 0;
     ws.pending_challenge = false;
+    ws.client_details = {};
 
 
     if(req.headers['x-forwarded-for']){
@@ -167,11 +172,13 @@ wss.on('connection', (ws, req) => {
     challenge(ws);
 
     ws.on('close', (code, reason) => {
+        delete clients_publicaddress[ws.epicPublicAddress];
         ws.epicPublicAddress = null;
         console.log('[%s] - [%s][%s] -> [%s] code: %s, reason: %s', new Date().toLocaleTimeString(), ws.uid, ws.ip, "Close connection", code, reason.toString());
     });
 
     ws.on('error', (err) => {
+        delete clients_publicaddress[ws.epicPublicAddress];
         ws.epicPublicAddress = null;
         console.log('[%s] - [%s][%s] -> [%s] error: %s', new Date().toLocaleTimeString(), ws.uid, ws.ip, "Error", err);
     });
@@ -183,7 +190,7 @@ wss.on('connection', (ws, req) => {
    	        message = JSON.parse(data);
         }catch(err){
             console.log("Error parsing json data from client.", err);
-
+            delete clients_publicaddress[ws.epicPublicAddress];
             ws.epicPublicAddress = null;
             return ws.close(code = 3000, reason = 'Error parsing message.');
         }
@@ -202,7 +209,7 @@ wss.on('connection', (ws, req) => {
                 ws.send("ping");
             break;
             /**
-             * @deprecated in wallet version 3.5.2
+             * @deprecated epicbox protocol version 3.0.0
              * clients should not be allowed to trigger challenge/subscribe requests
              */
             case "challenge":
@@ -221,14 +228,20 @@ wss.on('connection', (ws, req) => {
             case "made":
                 made(ws, message);
             break;
+            /**
+             * @deprecated epicbox protocol version 3.0.0
+             */
             case "getversion":
                 ws.send(JSON.stringify({type: "GetVersion", str: protver}))
             break;
             /**
-             * @deprecated in wallet version 3.5.2
+             * @deprecated  epicbox protocol version 3.0.0
              */
             case "fastsend":
                 ws.send(JSON.stringify({type:"Ok"}));
+            break;
+            case "clientdetails":
+                clientdetails(ws, message);
             break;
         }
         //end switch message type
@@ -253,12 +266,19 @@ const getTimestamp = () => {
 */
 const challenge = (ws) => {
     //we do not know clients epicbox version on first challenge request.
-    //todo. client should send its version when connect to epicbox via setVersion
+    //todo. client should send its version when connect to epicbox via client_details
     let challenge = ws.epicboxver == "2.0.0" || ws.epicboxver == null ? static_challenge : uid(32);
     ws.challenge = challenge;
     ws.send(JSON.stringify({"type": "Challenge", "str": challenge}));
     ws.pending_challenge = true;
 }
+
+
+const clientdetails = (ws, message) => {
+    ws.client_details = message;
+    ws.send(JSON.stringify({type:"Ok"}));
+}
+
 
 //
 // Subscribe
@@ -281,6 +301,8 @@ const subscribe = (ws, message) => {
             }
         }
 
+        console.log("ws.client_details", ws.client_details);
+
         // verify that client is the owner of the public key
         let args = ["verifysignature", message.address, ws.challenge, message.signature];
         const child = execFile(config.pathtoepicboxlib, args, (error, stdout, stderr) => {
@@ -295,8 +317,34 @@ const subscribe = (ws, message) => {
 
                 // client proved that he is the owner of the public address
                 ws.epicPublicAddress = message.address;
+
+                //add client listener for passthrough slates;
+                if(ws.client_details.wallet_mode == 'listener'){
+                    clients_publicaddress[ws.epicPublicAddress] = ws;
+                }
+
                 ws.lastSubscriptionTime = getTimestamp();
                 ws.pending_challenge = false;
+
+                //if at some case a made request was not send back from client
+                //we set 'process_slate' back to false after 3 successfully subscriptions
+                //and let the client try to process not made slates again.
+                //max resets are limited to 3 rounds.
+                if(ws.sendslate_attemps >= 3 && ws.max_sendslate_attemps <= 3){
+                    ws.sendslate_attemps = 0;
+                    ws.max_sendslate_attemps++;
+                    ws.process_slate = false;
+                }
+
+                //if it's not possible for client to process not made slates after 3 rounds (=9 attemps),
+                //then delete all not made slates from client in db
+                if(ws.max_sendslate_attemps >= 3){
+                    collection.deleteMany({ queue: ws.epicPublicAddress, made: false});
+                    ws.sendslate_attemps = 0;
+                    ws.max_sendslate_attemps = 0;
+                    ws.process_slate = false;
+                }
+
                 //get not processed tx for client
                 //prevent sending same slate multible times
                 if(ws.process_slate == false){
@@ -345,11 +393,13 @@ const subscribe = (ws, message) => {
                     });
                 }else{
                     //send back some response
+                    ws.sendslate_attemps++;
                     ws.send(JSON.stringify({type:"Ok"}));
                 }
 
             }else{
                 //client cannot prove that he is the owner of the public address
+                delete clients_publicaddress[ws.epicPublicAddress];
                 ws.epicPublicAddress = null;
                 ws.send(JSON.stringify({type: "Error", kind: "signature error", description: "Invalid signature."}));
             }
@@ -365,9 +415,10 @@ const subscribe = (ws, message) => {
 // Unsubscribe client
 //
 const unsubscribe = (ws) => {
-
+    delete clients_publicaddress[ws.epicPublicAddress];
     ws.epicPublicAddress = null;
-    ws.send(JSON.stringify({type:"Ok"}));
+    ws.close(1000, "Work complete.");
+
 }
 
 
@@ -423,6 +474,11 @@ const validatePostslate = (ws, message) => {
 
 }
 
+/*
+ client sends made response if successfully processed slate
+ @param {object} ws  - Client socket
+ @param {json} message - Client message see epic wallet
+*/
 const made = (ws, message) => {
 
     if(message.hasOwnProperty("epicboxmsgid") && message.hasOwnProperty("ver") && (message.ver == "2.0.0" || message.ver == "3.0.0")){
@@ -438,10 +494,11 @@ const made = (ws, message) => {
 
             if(stdout === 'true') {
                 console.log("Update for ", message.epicboxmsgid);
-                collection.updateOne({queue: ws.epicPublicAddress, messageid: message.epicboxmsgid, made:false}, { $set: {made:true} }).then( (updateResult) => {
+                collection.updateOne({queue: ws.epicPublicAddress, messageid: message.epicboxmsgid, made:false}, { $set: {made:true}}).then( (updateResult) => {
                     config.debugMessage ? console.log("DB update result", updateResult) : null;
                     ws.send(JSON.stringify({type:"Ok"}));
                     ws.process_slate = false;
+                    ws.sendslate_attemps = 0;
                     //if this slate was processed then send the next slate to client via challenge->subscribe
                     challenge(ws);
 
@@ -477,7 +534,7 @@ const postSlate = (ws, json) => {
 
         //challenge is not required, we keep it for backward compatibility
         let signed_payload = JSON.stringify({str: json.str, challenge: "", signature: json.signature});
-
+        let messageid = uid(32);
         // insert slate to db
         collection.insertOne({
                 queue: addressto.publicKey,
@@ -486,13 +543,47 @@ const postSlate = (ws, json) => {
                 replyto: json.from,
                 createdat: new Date(),
                 expiration: 86400000,
-                messageid: uid(32)
+                messageid: messageid
 
         }).catch((err)=>{
             console.error("Error insert to db", err);
         });
 
-        ws.send(JSON.stringify({type:"Ok"}));
+        //check if receiver is online, then pass slate through for faster processing
+        let receiver = clients_publicaddress[addressto.publicKey];
+        if(receiver != undefined && receiver.process_slate == false && receiver.readyState === 1){
+
+                if(config.stats){
+                    statistics.slatesAttempt++;
+                }
+
+                let slate = {
+                    type: "Slate",
+                    from: json.from,
+                    str: json.str,
+                    signature: json.signature,
+                    challenge: "",
+                };
+
+                if(receiver.epicboxver == "2.0.0" || receiver.epicboxver == "3.0.0"){
+                    slate.epicboxmsgid = messageid;
+                    slate.ver = receiver.epicboxver;
+                }else{
+                    collection.updateOne({ messageid:messageid }, { $set: { made:true } });
+                }
+
+                ws.send(JSON.stringify({type:"Ok"}));
+
+                receiver.send(JSON.stringify(slate));
+                receiver.process_slate = true;
+                console.log("Passthrough slate to", receiver.epicPublicAddress);
+                config.debugMessage ? console.log(slate) : null;
+
+        }else{
+            ws.send(JSON.stringify({type:"Ok"}));
+        }
+
+
 
     }else{
 
@@ -613,6 +704,5 @@ process.on('SIGINT', handle);
 process.on('SIGBREAK', handle);
 //process.on("SIGTERM", handle);
 //process.on("SIGKILL", handle);
-
 
 main();
