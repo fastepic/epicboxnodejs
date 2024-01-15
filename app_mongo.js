@@ -163,7 +163,11 @@ wss.on('connection', (ws, req) => {
     ws.sendslate_attempts = 0;
     ws.max_sendslate_attempts = 0;
     ws.pending_challenge = false;
-    ws.client_details = {};
+    ws.client_details = {
+        wallet_version: '',
+        wallet_mode: '',
+        protocol_version: ''
+    };
 
 
     if(req.headers['x-forwarded-for']){
@@ -438,15 +442,17 @@ const subscribe = (ws, message) => {
 
 /*
  Unsubscribe and close client connection
- validate address format and signature
  @param {object} ws  - Client socket
 */
 const unsubscribe = (ws) => {
-    if(ws.client_details.wallet_mode == 'listener'){
-        delete clients_publicaddress[ws.epicPublicAddress];
+
+    if(ws.epicPublicAddress != null){
+        if(ws.client_details.wallet_mode == 'listener'){
+            delete clients_publicaddress[ws.epicPublicAddress];
+        }
+        ws.epicPublicAddress = null;
+        ws.close(1000, "Work complete.");
     }
-    ws.epicPublicAddress = null;
-    ws.close(1000, "Work complete.");
 
 }
 
@@ -512,7 +518,7 @@ const validatePostslate = (ws, message) => {
 */
 const made = (ws, message) => {
 
-    if(message.hasOwnProperty("epicboxmsgid") && message.hasOwnProperty("ver") && (message.ver == "2.0.0" || message.ver == "3.0.0")){
+    if(ws.epicPublicAddress != null && message.hasOwnProperty("epicboxmsgid") && message.hasOwnProperty("ver") && (message.ver == "2.0.0" || message.ver == "3.0.0")){
         let args = [];
         if(message.ver == "3.0.0"){
             args = ["verifysignature", ws.epicPublicAddress, message.epicboxmsgid, message.signature];
