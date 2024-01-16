@@ -1,6 +1,5 @@
 extern crate colored;
 extern crate failure;
-#[macro_use]
 extern crate log;
 extern crate parking_lot;
 extern crate regex;

@@ -1,7 +1,8 @@
 use rand::{Rng, thread_rng};
-use ring::{aead, digest, pbkdf2};
+use ring::{aead, pbkdf2};
+use std::num::NonZeroU32;
 
-use crate::error::{ErrorKind, Result};
+use crate::error::{Error, ResultSingle};
 use crate::utils::{from_hex, to_hex};
 use crate::utils::secp::{Secp256k1, PublicKey, SecretKey};
 use crate::types::EpicboxAddress;
@@ -21,65 +22,98 @@ impl EpicboxMessage {
         destination: &EpicboxAddress,
         receiver_public_key: &PublicKey,
         secret_key: &SecretKey,
-    ) -> Result<EpicboxMessage> {
-        let secp = Secp256k1::new();
-        let mut common_secret = receiver_public_key.clone();
-        common_secret
-            .mul_assign(&secp, secret_key)
-            .map_err(|_| ErrorKind::Encryption)?;
-        let common_secret_ser = common_secret.serialize_vec(&secp, true);
-        let common_secret_slice = &common_secret_ser[1..33];
+    ) -> ResultSingle<EpicboxMessage> {
+	let secp = Secp256k1::new();
+	let mut common_secret = receiver_public_key.clone();
+	common_secret
+		.mul_assign(&secp, secret_key)
+		.map_err(|_| Error::Encryption)?;
+	let common_secret_ser = common_secret.serialize_vec(&secp, true);
+	let common_secret_slice = &common_secret_ser[1..33];
 
-        let salt: [u8; 8] = thread_rng().gen();
-        let nonce: [u8; 12] = thread_rng().gen();
-        let mut key = [0; 32];
-        pbkdf2::derive(&digest::SHA512, 100, &salt, common_secret_slice, &mut key);
-        let mut enc_bytes = message.as_bytes().to_vec();
-        let suffix_len = aead::CHACHA20_POLY1305.tag_len();
-        for _ in 0..suffix_len {
-            enc_bytes.push(0);
-        }
-        let sealing_key = aead::SealingKey::new(&aead::CHACHA20_POLY1305, &key)
-            .map_err(|_| ErrorKind::Encryption)?;
-        aead::seal_in_place(&sealing_key, &nonce, &[], &mut enc_bytes, suffix_len)
-            .map_err(|_| ErrorKind::Encryption)?;
+	let salt: [u8; 8] = thread_rng().gen();
+	let nonce: [u8; 12] = thread_rng().gen();
+	let mut key = [0; 32];
 
-        Ok(EpicboxMessage {
-            destination: Some(destination.clone()),
-            encrypted_message: to_hex(enc_bytes),
-            salt: to_hex(salt.to_vec()),
-            nonce: to_hex(nonce.to_vec()),
-        })
+	pbkdf2::derive(
+		ring::pbkdf2::PBKDF2_HMAC_SHA512,
+		NonZeroU32::new(100).unwrap(),
+		&salt,
+		common_secret_slice,
+		&mut key,
+	);
+
+	let mut enc_bytes = message.as_bytes().to_vec();
+
+	let unbound_key = aead::UnboundKey::new(&aead::CHACHA20_POLY1305, &key).unwrap();
+	let sealing_key: aead::LessSafeKey = aead::LessSafeKey::new(unbound_key);
+	let aad = aead::Aad::from(&[]);
+	let res = sealing_key.seal_in_place_append_tag(
+		aead::Nonce::assume_unique_for_key(nonce),
+		aad,
+		&mut enc_bytes,
+	);
+	if let Err(_) = res {
+		return Err(Error::Encryption)?;
+	}
+	Ok(EpicboxMessage {
+		destination: Some(destination.clone()),
+		encrypted_message: to_hex(enc_bytes),
+		salt: to_hex(salt.to_vec()),
+		nonce: to_hex(nonce.to_vec()),
+	})
     }
 
-    pub fn key(&self, sender_public_key: &PublicKey, secret_key: &SecretKey) -> Result<[u8; 32]> {
-        let salt = from_hex(self.salt.clone()).map_err(|_| ErrorKind::Decryption)?;
+    pub fn key(&self, sender_public_key: &PublicKey, secret_key: &SecretKey) -> ResultSingle<[u8; 32]> {
+	let salt = from_hex(self.salt.clone()).map_err(|_| Error::Decryption)?;
 
-        let secp = Secp256k1::new();
-        let mut common_secret = sender_public_key.clone();
-        common_secret
-            .mul_assign(&secp, secret_key)
-            .map_err(|_| ErrorKind::Decryption)?;
-        let common_secret_ser = common_secret.serialize_vec(&secp, true);
-        let common_secret_slice = &common_secret_ser[1..33];
+	let secp = Secp256k1::new();
+	let mut common_secret = sender_public_key.clone();
+	common_secret
+		.mul_assign(&secp, secret_key)
+		.map_err(|_| Error::Decryption)?;
+	let common_secret_ser = common_secret.serialize_vec(&secp, true);
+	let common_secret_slice = &common_secret_ser[1..33];
 
-        let mut key = [0; 32];
-        pbkdf2::derive(&digest::SHA512, 100, &salt, common_secret_slice, &mut key);
+	let mut key = [0; 32];
 
-        Ok(key)
+	let len = std::num::NonZeroU32::new(100).unwrap();
+
+	pbkdf2::derive(
+		pbkdf2::PBKDF2_HMAC_SHA512,
+		len,
+		&salt,
+		common_secret_slice,
+		&mut key,
+	);
+
+	Ok(key)
     }
 
-    pub fn decrypt_with_key(&self, key: &[u8; 32]) -> Result<String> {
-        let mut encrypted_message =
-            from_hex(self.encrypted_message.clone()).map_err(|_| ErrorKind::Decryption)?;
-        let nonce = from_hex(self.nonce.clone()).map_err(|_| ErrorKind::Decryption)?;
+    pub fn decrypt_with_key(&self, key: &[u8; 32]) -> ResultSingle<String> {
+		let mut encrypted_message =
+			from_hex(self.encrypted_message.clone()).map_err(|_| Error::Decryption)?;
+		let nonce = from_hex(self.nonce.clone()).map_err(|_| Error::Decryption)?;
 
-        let opening_key = aead::OpeningKey::new(&aead::CHACHA20_POLY1305, key)
-            .map_err(|_| ErrorKind::Decryption)?;
-        let decrypted_data =
-            aead::open_in_place(&opening_key, &nonce, &[], 0, &mut encrypted_message)
-                .map_err(|_| ErrorKind::Decryption)?;
+		let mut n = [0u8; 12];
+		n.copy_from_slice(&nonce[0..12]);
 
-        String::from_utf8(decrypted_data.to_vec()).map_err(|_| ErrorKind::Decryption.into())
+		let unbound_key = aead::UnboundKey::new(&aead::CHACHA20_POLY1305, key).unwrap();
+		let opening_key: aead::LessSafeKey = aead::LessSafeKey::new(unbound_key);
+		let aad = aead::Aad::from(&[]);
+		let res = opening_key.open_in_place(
+			aead::Nonce::assume_unique_for_key(n),
+			aad,
+			&mut encrypted_message,
+		);
+
+		if let Err(_) = res {
+			return Err(Error::Encryption)?;
+		}
+		for _ in 0..aead::AES_256_GCM.tag_len() {
+			encrypted_message.pop();
+		}
+
+		String::from_utf8(encrypted_message.to_vec()).map_err(|_| Error::Decryption.into())
     }
 }

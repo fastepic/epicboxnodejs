@@ -1,5 +1,5 @@
 use std::fmt::Write;
-use crate::error::{Result, ErrorKind};
+use crate::error::{Error, ResultSingle};
 
 pub use epic_core::global::is_mainnet;
 
@@ -17,9 +17,9 @@ pub fn to_hex(bytes: Vec<u8>) -> String {
 }
 
 /// Decode a hex string into bytes.
-pub fn from_hex(hex_str: String) -> Result<Vec<u8>> {
+pub fn from_hex(hex_str: String) -> ResultSingle<Vec<u8>> {
     if hex_str.len() % 2 == 1 {
-        Err(ErrorKind::NumberParsingError)?;
+        Err(Error::NumberParsingError)?;
     }
     let hex_trim = if &hex_str[..2] == "0x" {
         hex_str[2..].to_owned()
@@ -28,8 +28,8 @@ pub fn from_hex(hex_str: String) -> Result<Vec<u8>> {
     };
     let vec = split_n(&hex_trim.trim()[..], 2)
         .iter()
-        .map(|b| u8::from_str_radix(b, 16).map_err(|_| ErrorKind::NumberParsingError.into()))
-        .collect::<Result<Vec<u8>>>()?;
+        .map(|b| u8::from_str_radix(b, 16).map_err(|_| Error::NumberParsingError.into()))
+        .collect::<ResultSingle<Vec<u8>>>()?;
     Ok(vec)
 }
 
