@@ -1,5 +1,5 @@
 /*
-This is a program for an elite, narrow group of several Epic Box operators in the world. 
+This is a program for an elite, narrow group of several Epic Box operators in the world.
 If you are not one of them, reading this code is pointless.
 */
 
@@ -18,7 +18,7 @@ const fs = require("fs")
 // Html server used for websockets server
 const {createServer} = require("http")
 
-// Used for execute rust module which fast check addreses and verify signatures 
+// Used for execute rust module which fast check addreses and verify signatures
 const { execFile } = require('node:child_process')
 
 // For generate uid message id for Slate sending to wallet.
@@ -56,7 +56,7 @@ var interval = null
 
 // time of interval ( ms ) in which epicbox can try repeat send the oldest slate for address.
 //
-var intervalperiod = 4000 // 4 seconds 
+var intervalperiod = 4000 // 4 seconds
 
 
 //Where is executable rust named epicboxlib compiled from epicboxlib subfolder
@@ -79,11 +79,11 @@ const vardata = fs.readFileSync('config.json',
 
 
 function getvars(data){
- 
+
  try {
 
   let v = JSON.parse(data)
-  
+
   // mongourl = v.mongo_url
   // dbName = v.mongo_dbName
   // collectionname = v.mongo_collection_name
@@ -95,13 +95,13 @@ function getvars(data){
    pathtoepicboxlib = v.path_to_epicboxlib_exec_file
    fast_send_repeats = v.fast_send_repeats
    fast_send_repeat_interval_ms = v.fast_send_repeat_interval_ms
-   varinterval = v.var_interval   
+   varinterval = v.var_interval
    console.log(data)
- 
+
  } catch(err) {
 
    console.error(err)
- 
+
  }
 
 
@@ -118,9 +118,9 @@ setInterval(()=>{
         console.error(err);
         return;
       }
-      
+
        let v = JSON.parse(data)
-  
+
        challenge = v.challenge
        epicbox_domain = v.epicbox_domain
        epicbox_port = v.epicbox_port
@@ -148,7 +148,6 @@ setInterval(()=>{
 const mongoclient = new MongoClient(mongourl)
 
 var statistics = {
-  
   from: new Date(),
   connectionsInHour: 0,
   slatesReceivedInHour: 0,
@@ -161,7 +160,6 @@ var statistics = {
 
 setInterval(()=>{
 
-  
   statistics = {
 
     from: new Date(),
@@ -171,7 +169,7 @@ setInterval(()=>{
     slatesSentInHour: 0,
     subscribeInHour: 0,
     activeconnections: 0,
-    slatesAttempt:0   
+    slatesAttempt:0
   }
 
 },60*60*1000);
@@ -247,7 +245,7 @@ sending slate attempts: ${statistics.slatesAttempt}<br>\n\
 const server =  createServer(requestListener);
 
 
-// uncommented WebSocket creation with option for zip messages 
+// uncommented WebSocket creation with option for zip messages
 /*
 const wss = new WebSocketServer({
   //port:  3425,
@@ -276,12 +274,12 @@ const wss = new WebSocketServer({
 
 //WebSocket creation using HTTML server
 const wss = new WebSocketServer({
-  server:server,  
+  server:server,
 })
 
-// function pon connectione - run when wallets connect by webscoket to epicbox 
+// function pon connectione - run when wallets connect by webscoket to epicbox
 wss.on('connection', function connection(ws, req) {
- 
+
   statistics.connectionsInHour = statistics.connectionsInHour+1;
 
   ws.uid = uid(5);
@@ -298,7 +296,7 @@ wss.on('connection', function connection(ws, req) {
 
   ws.on('close', (code, reason)=>{
      try{
-      if(ws.queueforsubscribe!=null) {                                        
+      if(ws.queueforsubscribe!=null) {
         console.log(`[${ws.uid}]`," Socket close for ", ws.queueforsubscribe)
          ws.queueforsubscribe = null;
 
@@ -314,11 +312,11 @@ wss.on('connection', function connection(ws, req) {
   ws.on('error', (errws) =>{
     console.error(errws)
     try{
-    
+
       if(ws.queueforsubscribe!=null) {
         ws.queueforsubscribe = null;
- 
-      }  
+
+      }
     } catch(err){
       console.error(err)
     }
@@ -330,27 +328,27 @@ wss.on('connection', function connection(ws, req) {
   //  one Made is added for receive accept from wallets ( epicbox 2.0.0 suggestion )
   //
   ws.on('message', function message(data) {
-    
+
    // console.log('received: %s', data)
     try{
       if(data.toString()=="ping") { ws.send("pong"); /*console.log("ping");*/ return; }
-      if(data.toString()=="pong") {ws.send("ping"); /*console.log("pong");*/return;}    
+      if(data.toString()=="pong") {ws.send("ping"); /*console.log("pong");*/return;}
    	  let json=JSON.parse(data)
-      
+
        if(json.type=="Challenge") {
          console.log(json)
-         console.log('[%s][%s] -> [%s] send return [%s]', new Date().toLocaleTimeString(), ws.iphere, "Challenge", challenge) 
-        // remove for less move on internet, because Challenge is send automatic in interval but old wallets maybe need it
+         console.log('[%s][%s] -> [%s] send return [%s]', new Date().toLocaleTimeString(), ws.iphere, "Challenge", challenge)
+         // remove for less move on internet, because Challenge is send automatic in interval but old wallets maybe need it
          ws.send(JSON.stringify({"type": "Challenge","str": challenge}))
 
        } else if(json.type=="Subscribe") {
            console.log(json)
            console.log('[%s][%s] -> [%s]', new Date().toLocaleTimeString(), ws.iphere, "Subscribe")
-           subscribe(ws, json)	
+           subscribe(ws, json)
        } else if(json.type=="Unsubscribe") {
            console.log(json)
            console.log('[%s][%s] -> [%s]', new Date().toLocaleTimeString(), ws.iphere, "Unsubscribe")
-           unsubscribe(ws, json)  
+           unsubscribe(ws, json)
        } else if(json.type=="PostSlate"){
           console.log('[%s][%s] -> [%s]', new Date().toLocaleTimeString(), ws.iphere, "PostSlate")
           postslate(ws, json)
@@ -361,17 +359,17 @@ wss.on('connection', function connection(ws, req) {
        } else if(json.type=="GetVersion"){
           console.log('[%s][%s] -> [%s]', new Date().toLocaleTimeString(), ws.iphere, "GetVersion")
           let st = JSON.stringify({type:"GetVersion", str:protver})
-          console.log(st) 
+          console.log(st)
           ws.send(JSON.stringify({type:"GetVersion", str:protver}))
 
        } else if(json.type=="FastSend"){
           console.log('[%s][%s] -> [%s]', new Date().toLocaleTimeString(), ws.iphere, "GetVersion")
           fastsend(ws)
 
-       } else console.log('received: %s', data); 
+       } else console.log('received: %s', data);
 
-    } catch(err){
-	  
+    } catch(err) {
+
     }
   });
 
@@ -402,8 +400,8 @@ async function fastsend(ws){
       clearInterval(ws.fastsendInterval);
     }
 
-  }, fast_send_repeat_interval_ms); 
-    
+  }, fast_send_repeat_interval_ms);
+
 
 }
 
@@ -412,21 +410,21 @@ async function fastsend(ws){
 //
 async function subscribe(ws, json){
   console.log(`[${ws.uid}]`," subscribe ", json.address)
-  
+
   try{
-   
-   // check if wallet wants use ver 2.0.0  
-   if(json.hasOwnProperty("ver") && json.ver=="2.0.0") ws.epicboxver = "2.0.0"; 
-    
-    
-   // start check using externally rust program for verify signature send from wallet 
+
+   // check if wallet wants use ver 2.0.0
+   if(json.hasOwnProperty("ver") && json.ver=="2.0.0") ws.epicboxver = "2.0.0";
+
+
+   // start check using externally rust program for verify signature send from wallet
    const child = execFile(pathtoepicboxlib, ["verifysignature", json.address , challenge, json.signature], (error, stdout, stderr) => {
      if (error) {
         throw error;
      }
-     
+
      var isTrueSet = (stdout === 'true');
-     
+
      // if sugnature is OK
      if(isTrueSet) {
 
@@ -435,9 +433,9 @@ async function subscribe(ws, json){
 // for backward for older wallets
 /*
  try {
-              
+
                 const db = mongoclient.db(dbName);
-                const collection = db.collection(collectionname);    
+                const collection = db.collection(collectionname);
 
                // find message id send in Made message from vallet
                collection.find({ queue: json.address, made: false}).sort({ "createdat" : 1 }).limit(1).toArray().then((findResult)=>{
@@ -461,49 +459,46 @@ async function subscribe(ws, json){
 
                       if(ws.epicboxver == "2.0.0"){
 
-                              let messageid = findResult[0].messageid                           
-              
+                              let messageid = findResult[0].messageid
                               answer.epicboxmsgid = messageid
                               answer.ver = ws.epicboxver
-                              answerstr = JSON.stringify(answer)                                                            
-                              ws.send(answerstr)  
+                              answerstr = JSON.stringify(answer)
+                              ws.send(answerstr)
                               console.log("Sent to 2.0.0 ", json.address)
 
                       } else {
 
-                            answerstr = JSON.stringify(answer)                      
+                            answerstr = JSON.stringify(answer)
                             ws.send(answerstr)
-                            console.log("Looks sent to ", json.address)                            
+                            console.log("Looks sent to ", json.address)
                             collection.updateOne({messageid:findResult[0].messageid, made:false}, {$set:{made:true} }).then((updateResult)=>{
 
 
                             });
 
                       }
-            
 
                     } else {
                       // console.log("msgrabbit ", msgrabbit)
                       //console.log("Error ", err)
-                    } 
+                    }
 
 
-               }); 
+               });
 
-            
         } catch(err){
           console.log(err)
         }
 
 */
-// and for backward for older wallets      
+// and for backward for older wallets
 
 
 
            statistics.subscribeInHour = statistics.subscribeInHour+1
-           if(ws.epicboxver) console.log(ws.epicboxver) 
-           // here we store address of wallet which is queue in RabbitMq 
-           ws.queueforsubscribe = json.address  
+           if(ws.epicboxver) console.log(ws.epicboxver)
+           // here we store address of wallet which is queue in RabbitMq
+           ws.queueforsubscribe = json.address
 
            ws.send(JSON.stringify({type:"Ok"}))
 
@@ -512,7 +507,7 @@ async function subscribe(ws, json){
       ws.send(JSON.stringify({type:"Error", kind:"signature error", description:"Signature error"}))
      }
    });
-  
+
  } catch(err){
         console.log(err)
 	      ws.send(JSON.stringify({type:"Error", kind:"signature error", description:"Signature error"}))
@@ -524,17 +519,17 @@ async function subscribe(ws, json){
 // run when wallet sent Unsuscribe Message
 //
 async function unsubscribe(ws, json){
-  
+
   try{
-    
+
     ws.queueforsubscribe = null;
 
-    // fast send Ok message to wallet, because unsubscribe rather always without error  
+    // fast send Ok message to wallet, because unsubscribe rather always without error
     ws.send(JSON.stringify({type:"Ok"})); //return;
 
   } catch(e) {
     console.log(e)
-  } 
+  }
 
 }
 
@@ -544,7 +539,7 @@ async function unsubscribe(ws, json){
 // it can send to other epicbox when to address domain is differnet when our epicbox domain
 //
 async function postslate(ws, json){
-  
+
   try {
      console.log("postslate from ", json.from, "to ", json.to)
 
@@ -553,64 +548,48 @@ async function postslate(ws, json){
 
    // use externally rust program to verify addresses - it is the same which is used to verify signatures
    const childadd = execFile(pathtoepicboxlib, ['verifyaddress',  json.from, json.to], (erroradr, stdoutadr, stderradr) => {
-    if(erroradr){
-    	throw erroradr
-    }
-   
-    var isTrueSetadr = (stdoutadr === 'true');
+       if(erroradr){
+           throw erroradr
+        }
 
-    if(isTrueSetadr) { 
+       var isTrueSetadr = (stdoutadr === 'true');
 
-     // use rust program to verify signatures
-     const child = execFile(pathtoepicboxlib, ["verifysignature", from , json.str, json.signature], (error, stdout, stderr) => {
+       if(isTrueSetadr) {
 
-       if (error) {
-          throw error;
-       }
-       
-       var isTrueSet = (stdout === 'true');
-       
-       
-       if(isTrueSet) {
-           
-           statistics.slatesReceivedInHour = statistics.slatesReceivedInHour + 1
-           preparePostSlate(ws, json, "")
-       
-       } else {
-             
-             // check again signatures --- why ? it is rather never used, but it is in orginal rust code.
-             const child2 = execFile(pathtoepicboxlib, ["verifysignature", from , challenge, json.signature], (error, stdout, stderr) => {
-              
-                 var isTrueSet2 = (stdout === 'true');
-                 if(isTrueSet2){
+           // use rust program to verify signatures
+           const child = execFile(pathtoepicboxlib, ["verifysignature", from , json.str, json.signature], (error, stdout, stderr) => {
 
+               if (error) {
+                   throw error;
+               }
+
+               var isTrueSet = (stdout === 'true');
+
+               if(isTrueSet) {
                    statistics.slatesReceivedInHour = statistics.slatesReceivedInHour + 1
-                   preparePostSlate(ws, json, challenge);
-                  
-                  } else {
-                   ws.send(JSON.stringify({type:"Error", kind:"postslate error", description:"PostSlate error"}))
-                 }
-             })
-       }    
-
+                   preparePostSlate(ws, json, "")
+               } else {
+                  // check again signatures --- why ? it is rather never used, but it is in orginal rust code.
+                   const child2 = execFile(pathtoepicboxlib, ["verifysignature", from , challenge, json.signature], (error, stdout, stderr) => {
+                       var isTrueSet2 = (stdout === 'true');
+                       if(isTrueSet2) {
+                           statistics.slatesReceivedInHour = statistics.slatesReceivedInHour + 1
+                           preparePostSlate(ws, json, challenge);
+                       } else {
+                           ws.send(JSON.stringify({type:"Error", kind:"postslate error", description:"PostSlate error"}))
+                       }
+                   })
+               }
+           })
+        } else {
+            ws.send(JSON.stringify({type:"Error", kind:"postslate error", description:"PostSlate Addresses error"}))
+        }
     })
-
-    }  else {
-                 ws.send(JSON.stringify({type:"Error", kind:"postslate error", description:"PostSlate Addresses error"}))
-     
-    }
-   })
-
-
-  } catch(err){
-    console.error("postslate ", err)
-    ws.send(JSON.stringify({type:"Error", kind:"postslate error", description:"PostSlate error"}))
-
-  } 
-
+  } catch(err) {
+      console.error("postslate ", err)
+      ws.send(JSON.stringify({type:"Error", kind:"postslate error", description:"PostSlate error"}))
+  }
 }
-
-
 
 //
 // run only for wallets used ver 2.0.0
@@ -621,20 +600,20 @@ async function postslate(ws, json){
 function made(ws, json){
 
   console.log(json);
-  
+
   try {
 
     if(json.hasOwnProperty("epicboxmsgid") && ws.epicboxver=="2.0.0" && json.hasOwnProperty("ver") && json.ver=="2.0.0"){
 
 
-     // check signature by externally rust app 
+     // check signature by externally rust app
      const child = execFile(pathtoepicboxlib, ["verifysignature", json.address , challenge, json.signature], (error, stdout, stderr) => {
          if (error) {
             throw error;
          }
 
          var isTrueSet = (stdout === 'true');
-         
+
          if(isTrueSet) {
 
              console.log("Made signature OK")
@@ -646,16 +625,15 @@ function made(ws, json){
 
                   console.log("make update result ", updateResult)
 
-                  //ws.send(JSON.stringify({type:"Ok"})) 
+                  //ws.send(JSON.stringify({type:"Ok"}))
 
              }).catch(console.error)
 
         }
-      
-      });
-         
 
-    } 
+      });
+
+    }
 
  } catch( err ){
 
@@ -680,16 +658,16 @@ function  preparePostSlate(ws, json, chall){
      if(addressto.port==null ) addressto.port = 443; else addressto.port = Number(addressto.port);
 
      if(addressto.domain==epicbox_domain && addressto.port===epicbox_port){
-            
+
 		        let signed_payload = {str: json.str, challenge: chall, signature: json.signature}
             signed_payload = JSON.stringify(signed_payload)
-  
+
             let buf = Buffer.from(signed_payload)
             let epicboxreplyto = json.from
 
 
             const db = mongoclient.db(dbName);
-            const collection = db.collection(collectionname);   
+            const collection = db.collection(collectionname);
 
 
             // here insert slate to mongo - here is added messageId which is used in ver. 2.0.0
@@ -727,49 +705,41 @@ function  preparePostSlate(ws, json, chall){
 
                               if(client.epicboxver == "2.0.0"){
 
-                                      let messageid = findResult[0].messageid                           
-                      
+                                      let messageid = findResult[0].messageid
+
                                       answer.epicboxmsgid = messageid
                                       answer.ver = client.epicboxver
-                                      answerstr = JSON.stringify(answer)                                                            
-                                      client.send(answerstr)  
+                                      answerstr = JSON.stringify(answer)
+                                      client.send(answerstr)
                                       console.log("Sent to 2.0.0 ", client.queueforsubscribe)
 
                               } else {
 
-                                    answerstr = JSON.stringify(answer)                      
+                                    answerstr = JSON.stringify(answer)
                                     client.send(answerstr)
-                                    console.log("Looks sent to ", client.queueforsubscribe)                            
+                                    console.log("Looks sent to ", client.queueforsubscribe)
                                     collection.updateOne({messageid:findResult[0].messageid, made:false}, {$set:{made:true} }).then((updateResult)=>{
 
 
                                     });
 
                               }
-                    
-
-                          
-
 
                           }
-                      })
 
+                       })
 
                     }
 
-                  })               
+                 })
 
             }).catch((err)=>{
-              
-              ws.send(JSON.stringify({type:"Error", kind:"Slate send error", description:"Slate problem"}))              
+
+              ws.send(JSON.stringify({type:"Error", kind:"Slate send error", description:"Slate problem"}))
               console.error(err)
 
             })
 
-
-
-            
-             
       } else {
         // connect by wss to other epicbox
         // when received Challange send by Message PostSlate Slate received from wallet.
@@ -795,18 +765,17 @@ function  preparePostSlate(ws, json, chall){
                             console.log("Send to wss://"+addressto.domain+":"+addressto.port)
 			                  }
                         if(ames.type=="Ok") {
-                         statistics.slatesRelayedInHour = statistics.slatesRelayedInHour + 1 
+                         statistics.slatesRelayedInHour = statistics.slatesRelayedInHour + 1
                          console.log("Sent correct to wss://"+addressto.domain+":"+addressto.port)
-                          ws.send(JSON.stringify({type:"Ok"}));                
-                        } 
-		          
+                          ws.send(JSON.stringify({type:"Ok"}));
+                        }
+
                   } catch(ee){
 				            console.error(ee)
                     ws.send(JSON.stringify({type:"Error", kind:"Slate send error remote server", description:"Slate problem remote server"}));
                   }
         })
       }
-
 
 }
 
@@ -816,7 +785,7 @@ function  preparePostSlate(ws, json, chall){
 //  function warking in interval repeted in 3 sec. after finish loop
 //  it check all connected websockets to epicbox and if they are in Subscribe mode check if new Slate are waitng for it
 //  if new slate is ... when send it.
-//  check if wallet use 2.0.0 version 
+//  check if wallet use 2.0.0 version
 //
 function forInterval(){
 
@@ -829,9 +798,9 @@ function forInterval(){
         foractiveconnections = foractiveconnections + 1
         //console.log("Checking ", client.queueforsubscribe)
         try {
-              
+
                 const db = mongoclient.db(dbName);
-                const collection = db.collection(collectionname);    
+                const collection = db.collection(collectionname);
 
                // find message id send in Made message from vallet
                collection.find({ queue: client.queueforsubscribe, made: false}).sort({ "createdat" : 1 }).limit(1).toArray().then((findResult)=>{
@@ -855,40 +824,38 @@ function forInterval(){
 
                       if(client.epicboxver == "2.0.0"){
 
-                              let messageid = findResult[0].messageid                           
-              
+                              let messageid = findResult[0].messageid
+
                               answer.epicboxmsgid = messageid
                               answer.ver = client.epicboxver
-                              answerstr = JSON.stringify(answer)                                                            
-                              client.send(answerstr)  
+                              answerstr = JSON.stringify(answer)
+                              client.send(answerstr)
                               console.log("Sent to 2.0.0 ", client.queueforsubscribe)
 
                       } else {
 
-                            answerstr = JSON.stringify(answer)                      
+                            answerstr = JSON.stringify(answer)
                             client.send(answerstr)
-                            console.log("Looks sent to ", client.queueforsubscribe)                            
+                            console.log("Looks sent to ", client.queueforsubscribe)
                             collection.updateOne({messageid:findResult[0].messageid, made:false}, {$set:{made:true} }).then((updateResult)=>{
 
 
                             });
 
                       }
-            
 
                     } else {
                       // console.log("msgrabbit ", msgrabbit)
                       //console.log("Error ", err)
-                    } 
+                    }
 
 
-               }); 
+               });
 
-            
         } catch(err){
           console.log(err)
         }
-      
+
       }
 
     });
@@ -907,7 +874,7 @@ function forIntervalChallenge(){
 
     wss.clients.forEach(function each(client) {
       if (client.readyState === 1 && client.queueforsubscribe!=null && client.epicboxver == "2.0.0") {
-      
+
           try{
 
             client.send(JSON.stringify({"type": "Challenge","str": challenge}))
@@ -928,9 +895,9 @@ function forIntervalChallenge(){
 let changeStream;
 async function run() {
   try {
-    
+
     const db = mongoclient.db(dbName);
-    const collection = db.collection(collectionname);    
+    const collection = db.collection(collectionname);
 
     // Open a Change Stream on the "haikus" collection
     changeStream = collection.watch();
@@ -939,7 +906,7 @@ async function run() {
       console.log("Received change:\n", change);
     }
     await changeStream.close();
-    
+
   } finally {
     console.log("End")
   }
@@ -955,12 +922,12 @@ async function main() {
   console.log('Connected successfully to mongo');
 
   //run().catch(console.log);
-    
+
   server.listen(localepicboxserviceport)
-   
+
   interval = setInterval( forInterval, 2000);
   
-  setInterval(forIntervalChallenge, 3*60*1000); 
+  setInterval(forIntervalChallenge, 1*60*1000); // 60 sec
 
   return "Epicbox ready to work.";
 
@@ -973,7 +940,7 @@ function handle(signal) {
 
 
     wss.clients.forEach(function each(client) {
-      
+
       client.close();
 
     });
@@ -982,7 +949,7 @@ function handle(signal) {
     process.exit()
 
 }
- 
+
 process.on('SIGINT', handle);
 process.on('SIGBREAK', handle);
 //process.on("SIGTERM", handle);

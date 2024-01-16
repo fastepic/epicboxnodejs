@@ -1,7 +1,7 @@
 use regex::Regex;
 use std::fmt::{self, Display};
 
-use crate::error::{ErrorKind, Result};
+use crate::error::{Error, ResultSingle};
 use crate::utils::crypto::Base58;
 use crate::utils::is_mainnet;
 use crate::utils::secp::PublicKey;
@@ -20,7 +20,7 @@ pub fn version_bytes() -> Vec<u8> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
 pub struct EpicboxAddress {
     pub public_key: String,
     pub domain: String,
@@ -52,11 +52,11 @@ impl EpicboxAddress {
         }
     }
 
-    pub fn from_str(s: &str) -> Result<Self> {
+    pub fn from_str(s: &str) -> ResultSingle<Self> {
         let re = Regex::new(EPICBOX_ADDRESS_REGEX).unwrap();
         let captures = re.captures(s);
         if captures.is_none() {
-            Err(ErrorKind::EpicboxAddressParsingError(s.to_string()))?;
+            Err(Error::EpicboxAddressParsingError(s.to_string()))?;
         }
 
         let captures = captures.unwrap();
@@ -71,11 +71,11 @@ impl EpicboxAddress {
         Ok(EpicboxAddress::new(public_key, domain, port))
     }
 
-    pub fn from_str_raw(s: &str) -> Result<Self> {
+    pub fn from_str_raw(s: &str) -> ResultSingle<Self> {
         let re = Regex::new(EPICBOX_ADDRESS_REGEX).unwrap();
         let captures = re.captures(s);
         if captures.is_none() {
-            Err(ErrorKind::EpicboxAddressParsingError(s.to_string()))?;
+            Err(Error::EpicboxAddressParsingError(s.to_string()))?;
         }
 
         let captures = captures.unwrap();
@@ -95,7 +95,7 @@ impl EpicboxAddress {
         ))
     }
 
-    pub fn public_key(&self) -> Result<PublicKey> {
+    pub fn public_key(&self) -> ResultSingle<PublicKey> {
         PublicKey::from_base58_check(&self.public_key, version_bytes())
     }
 

@@ -1,17 +1,17 @@
 # epicboxnodejs
-Epicbox version on nodejs with elements of rust and adopt changes in epicbox protocole.
+Epicbox Relay Server created with nodejs containing elements of rust, fast send, and updated epicbox protocol.
 
-Added app_mongo_many.js for run many isntances under one domain. Each instance need use the same mongo database, in all instances adopted fastsend method.
-For fastsend method only one of instances must have in config_many.json set fast_send_master=true, slaves ips must be set in array fast_send_slaves.
-All instances must have the same epicbox domain and epicbox port set ( correct to your used epicbox.domain ).
+Added app_mongo_many.js to run multiple instances under one domain. Each instance needs to use the same mongo database, and all instances use the fastsend method.
+For fastsend method only one instance must have config_many.json set with fast_send_master=true, slave IPs must be set in array fast_send_slaves.
+All instances must have the same epicbox domain and epicbox port set.
 
-Instance with set fast_send_master = true can work like independent alone epicbox ( like preverious version app_mongo.js ).
+The instance with fast_send_master = true can work like a single epicbox ( like app_mongo.js ).
 
-For each instance so you must use diffirent config_many.json file ( set other local port, or fast_send_master = false etc. ) so to run epicbox use command:
+For each instance you must use a different config_many.json file ( set other local port, or fast_send_master = false etc. ) so to run epicbox use command:
 
 node app_mongo_many.js config_many.json
 
-And for next one:
+And for the next one:
 
 node app_mongo_many.js config_many_slave1.json
 
