@@ -39,7 +39,7 @@ const static_challenge = "7WUDtkSaKyGRUnQ22rE3QUXChV8DmA6NnunDYP4vheTpc";
 const clients_publicaddress = {};
 const config = {
     mongourl: "mongodb://127.0.0.1:27019",
-    epicbox_domain: "epicbox.fastepic.eu",
+    epicbox_domain: "epicbox.epiccash.com",
     epicbox_port: "443",
     localepicboxserviceport: "3423",
     pathtoepicboxlib: "./epicboxlib",
@@ -93,29 +93,26 @@ const requestListener = (req, res) => {
         </head>\n\
         <body style='background-color: #242222; color: lightgray; margin-left: 20px;''>\n\
         \n\
-        <h1>Epicbox servers. Local server number 1</h1>\n\
-        <p>Protocol 2.0.0</p>\n\
-        <a href='https://github.com/fastepic/epic-wallet/tree/epicbox-0.0.1'>epic-wallet to build with protocol 2.0.0</a>\n\
+        <h1>Epicbox server</h1>\n\
+        <p>Protocol version ${protver}</p>\n\
         <p>Asia, Australia - epicbox.hyperbig.com</p>\n\
-        <p>North America, South America - epicbox.epic.tech</p>\n\
+        <p>North America, South America - epicbox.epiccash.com</p>\n\
         <p>US East Cost - epicbox.epicnet.us</p>\n\
         <p>Africa, Europe - epicbox.fastepic.eu</p>\n\
+        <p>Europe - epicbox.51pool.online</p>\n\
         <br>\n\
         <p>More about Epic</p>\n\
-        <a href='https://epic.tech'>Epic Cash main webpage</a>\n\
+        <a href="https://epiccash.com" target="_blank">Epic Cash website</a>\n\
         <br>\n\
         <br>\n\
-            Example use in toml file.\n\
+            Required epic-wallet.toml settings.\n\
         \n\
         <pre>\n\
         <code>\n\
         \n\
         [epicbox]\n\
-        epicbox_domain = 'epicbox.fastepic.eu'\n\
+        epicbox_domain = 'epicbox.epiccash.com'\n\
         epicbox_port = 443\n\
-        epicbox_protocol_unsecure = false\n\
-        epicbox_address_index = 0\n\
-        epicbox_listener_interval = 10\n\
         \n\
         </code>\n\
         </pre>\n\
