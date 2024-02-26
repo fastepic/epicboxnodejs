@@ -3,6 +3,7 @@
 // Before start create user and indexes
 /*
 
+
  db.slates.createIndex({queue:1, made:1, createdat: 1});
  db.slates.createIndex({messageid:1, made:1});
  db.slates.createIndex({ "createdat": 1 }, {expireAfterSeconds: 604800 });
@@ -52,6 +53,7 @@ const config = {
 let mongoclient = null;
 let collection = null;
 let statistics = {
+
   from: new Date(),
   connectionsInHour: 0,
   slatesReceivedInHour: 0,
@@ -170,9 +172,9 @@ wss.on('connection', (ws, req) => {
     };
 
 
-    if(req.headers['x-forwarded-for']){
+    if (req.headers['x-forwarded-for']){
         ws.ip = req.headers['x-forwarded-for'].split(',')[0].trim();
-    }else{
+    } else {
         ws.ip = req.socket.remoteAddress;
     }
 
